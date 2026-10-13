@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      // Polyfill/shim window.fetch setter to prevent extensions/interceptors
+      // from throwing "TypeError: Cannot set property fetch of #<Window> which has only a getter"
+      (function() {
+        try {
+          var currentFetch = window.fetch;
+          Object.defineProperty(window, 'fetch', {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return currentFetch;
+            },
+            set: function(val) {
+              currentFetch = val;
+            }
+          });
+        } catch (e) {
+          try {
+            var proto = Object.getPrototypeOf(window);
+            if (proto) {
+              var pFetch = window.fetch;
+              Object.defineProperty(proto, 'fetch', {
+                configurable: true,
+                enumerable: true,
+                get: function() {
+                  return pFetch;
+                },
+                set: function(val) {
+                  pFetch = val;
+                }
+              });
+            }
+          } catch (_) {}
+        }
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SLA English Reflex Coach - 90-Day A2 to B1+</title>
+    <meta name="description" content="Hệ thống luyện giao tiếp tiếng Anh 1-on-1 theo phương pháp Tiếp thu Ngôn ngữ Thứ hai (SLA) & Krashen i+1, lộ trình 90 ngày bứt phá A2 lên B1+ cùng Giáo sư Trí tuệ Nhân tạo." />
+    <meta property="og:title" content="SLA English Reflex Coach - 90-Day A2 to B1+" />
+    <meta property="og:description" content="Hệ thống luyện giao tiếp tiếng Anh 1-on-1 theo phương pháp Tiếp thu Ngôn ngữ Thứ hai (SLA) & Krashen i+1, lộ trình 90 ngày bứt phá A2 lên B1+ cùng Giáo sư Trí tuệ Nhân tạo." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-slate-950 text-slate-100 antialiased font-sans selection:bg-indigo-500 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

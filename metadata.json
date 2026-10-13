@@ -1,0 +1,6 @@
+{
+  "name": "SLA English Reflex Coach - 90-Day A2 to B1+",
+  "description": "Hệ thống luyện giao tiếp tiếng Anh 1-on-1 theo phương pháp Tiếp thu Ngôn ngữ Thứ hai (SLA) & Krashen i+1, lộ trình 90 ngày bứt phá A2 lên B1+ cùng Giáo sư Trí tuệ Nhân tạo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
