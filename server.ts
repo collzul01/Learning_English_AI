@@ -11,7 +11,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 LingoReflex SLA Server running on port ${PORT}`);
+});
 
 app.use(express.json({ limit: '10mb' }));
 
