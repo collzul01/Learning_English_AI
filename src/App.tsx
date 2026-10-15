@@ -8,21 +8,67 @@ import { ModuleDebrief } from './components/ModuleDebrief';
 import { RoadmapModal } from './components/RoadmapModal';
 import { SettingsModal } from './components/SettingsModal';
 import { VocabularyModal } from './components/VocabularyModal';
+import { ProfileSelectionModal } from './components/ProfileSelectionModal';
+import { BackgroundCustomizerModal } from './components/BackgroundCustomizerModal';
+import { AppBackground } from './components/AppBackground';
 import { getLessonForDay } from './data/curriculum';
-import { ModuleStep, ChatMessage, UserProgress, VocabularyItem } from './types';
+import {
+  ModuleStep,
+  ChatMessage,
+  UserProgress,
+  VocabularyItem,
+  UserProfile,
+  BackgroundSettings,
+} from './types';
 import { audioEngine } from './utils/audio';
+import {
+  getStoredProfiles,
+  saveStoredProfiles,
+  getActiveProfileId,
+  setActiveProfileId,
+  getProfileVocab,
+  saveProfileVocab,
+  getStoredBgSettings,
+  saveStoredBgSettings,
+} from './utils/profileStorage';
 
-const STORAGE_KEY = 'lingoreflex_progress_v1';
-const SETTINGS_KEY = 'lingoreflex_settings_v1';
-const VOCAB_STORAGE_KEY = 'lingoreflex_vocab_v1';
+const SETTINGS_KEY = 'lingoreflex_settings_v2';
 
 export default function App() {
-  // Saved progress in LocalStorage
+  // 1. Multi-User Profiles System
+  const [profiles, setProfiles] = useState<UserProfile[]>(getStoredProfiles);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(() => {
+    const activeId = getActiveProfileId();
+    const stored = getStoredProfiles();
+    if (activeId) {
+      const match = stored.find((p) => p.id === activeId);
+      if (match) return match;
+    }
+    return stored[0] || null;
+  });
+
+  // Modal to select user profile at start or on switch
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(() => {
+    // Show profile modal at start if no active profile was saved or explicitly connected
+    return !getActiveProfileId();
+  });
+
+  // 2. Background Settings (with family lantern theme & contrast adjustments)
+  const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getStoredBgSettings);
+  const [showBgModal, setShowBgModal] = useState<boolean>(false);
+
+  // 3. Current User's Progress
   const [userProgress, setUserProgress] = useState<UserProgress>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
+    const prof = currentProfile;
+    if (prof) {
+      return {
+        currentDay: prof.currentDay || 1,
+        completedDays: prof.completedDays || [],
+        totalMinutesPracticed: prof.totalMinutesPracticed || 0,
+        streakDays: prof.streakDays || 1,
+        lastPracticeDate: prof.lastPracticeDate || new Date().toISOString().split('T')[0],
+      };
+    }
     return {
       currentDay: 1,
       completedDays: [],
@@ -32,50 +78,17 @@ export default function App() {
     };
   });
 
-  // Persistent My Vocabulary List
+  // 4. Current User's Vocabulary List (Isolated per profile)
   const [vocabularyList, setVocabularyList] = useState<VocabularyItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(VOCAB_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [
-      {
-        id: 'v-d1-1',
-        phrase: 'step out of my comfort zone',
-        day: 1,
-        learnedAt: Date.now(),
-        contextSnippet: 'I decided to join this club to step out of my comfort zone.',
-        mastered: false,
-      },
-      {
-        id: 'v-d1-2',
-        phrase: 'be really into something',
-        day: 1,
-        learnedAt: Date.now(),
-        contextSnippet: "Lately, I've been really into acoustic music and photography.",
-        mastered: false,
-      },
-      {
-        id: 'v-d1-3',
-        phrase: 'to be honest with you',
-        day: 1,
-        learnedAt: Date.now(),
-        contextSnippet: 'To be honest with you, I was a bit nervous at first.',
-        mastered: false,
-      },
-    ];
+    if (currentProfile) {
+      return getProfileVocab(currentProfile.id);
+    }
+    return [];
   });
 
-  // Settings
+  // 5. System Settings
   const [voiceName, setVoiceName] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(SETTINGS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.voiceName || 'Kore';
-      }
-    } catch {}
-    return 'Kore';
+    return currentProfile?.voiceName || 'Kore';
   });
 
   const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(() => {
@@ -89,10 +102,10 @@ export default function App() {
     return true;
   });
 
-  // Navigation & Modals
+  // 6. Navigation & Modals
   const [currentDay, setCurrentDay] = useState<number>(userProgress.currentDay || 1);
   const [currentStep, setCurrentStep] = useState<ModuleStep>('warmup');
-  const [showInitialTrigger, setShowInitialTrigger] = useState<boolean>(true);
+  const [showInitialTrigger, setShowInitialTrigger] = useState<boolean>(false);
   const [showRoadmap, setShowRoadmap] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showVocabularyModal, setShowVocabularyModal] = useState<boolean>(false);
@@ -108,13 +121,113 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
 
+  // 7. Profile Selection Handler: 1-click jump to next lesson!
+  const handleSelectProfile = (profile: UserProfile) => {
+    setCurrentProfile(profile);
+    setActiveProfileId(profile.id);
+
+    // Calculate next lesson:
+    // If completedDays is [1, 2, 3], automatically jumps to Day 4!
+    const nextDay =
+      profile.currentDay ||
+      (profile.completedDays.length > 0
+        ? Math.min(90, Math.max(...profile.completedDays) + 1)
+        : 1);
+
+    setCurrentDay(nextDay);
+    setCurrentStep('warmup');
+
+    const nextProgress: UserProgress = {
+      currentDay: nextDay,
+      completedDays: profile.completedDays || [],
+      totalMinutesPracticed: profile.totalMinutesPracticed || 0,
+      streakDays: profile.streakDays || 1,
+      lastPracticeDate: profile.lastPracticeDate || new Date().toISOString().split('T')[0],
+    };
+    setUserProgress(nextProgress);
+
+    // Load isolated vocabulary
+    const userVocab = getProfileVocab(profile.id);
+    setVocabularyList(userVocab);
+
+    if (profile.voiceName) {
+      setVoiceName(profile.voiceName);
+    }
+
+    setShowProfileModal(false);
+    audioEngine.playDing('success');
+  };
+
+  // Create Profile Handler
+  const handleCreateProfile = (data: {
+    name: string;
+    roleLabel: string;
+    avatar: string;
+    colorTheme: string;
+  }) => {
+    const newProfile: UserProfile = {
+      id: `profile-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: data.name,
+      roleLabel: data.roleLabel,
+      avatar: data.avatar,
+      colorTheme: data.colorTheme,
+      currentDay: 1,
+      completedDays: [],
+      totalMinutesPracticed: 0,
+      streakDays: 1,
+      lastPracticeDate: new Date().toISOString().split('T')[0],
+      voiceName: 'Kore',
+      autoPlayAudio: true,
+      createdAt: Date.now(),
+      lastActiveAt: Date.now(),
+    };
+
+    const updated = [...profiles, newProfile];
+    setProfiles(updated);
+    saveStoredProfiles(updated);
+    handleSelectProfile(newProfile);
+  };
+
+  // Update Profile Handler
+  const handleUpdateProfile = (id: string, updates: Partial<UserProfile>) => {
+    setProfiles((prev) => {
+      const nextList = prev.map((p) => (p.id === id ? { ...p, ...updates } : p));
+      saveStoredProfiles(nextList);
+      if (currentProfile?.id === id) {
+        setCurrentProfile((cp) => (cp ? { ...cp, ...updates } : null));
+      }
+      return nextList;
+    });
+  };
+
+  // Delete Profile Handler
+  const handleDeleteProfile = (id: string) => {
+    const updated = profiles.filter((p) => p.id !== id);
+    setProfiles(updated);
+    saveStoredProfiles(updated);
+
+    if (currentProfile?.id === id) {
+      if (updated.length > 0) {
+        handleSelectProfile(updated[0]);
+      } else {
+        setShowProfileModal(true);
+      }
+    }
+  };
+
+  // Background Settings Update
+  const handleUpdateBgSettings = (newSettings: BackgroundSettings) => {
+    setBgSettings(newSettings);
+    saveStoredBgSettings(newSettings);
+  };
+
   // Extract & Store pedagogyHighlights into Vocabulary List
   const extractAndStoreHighlights = (
     highlights: string[],
     day: number,
     contextSnippet?: string
   ) => {
-    if (!highlights || highlights.length === 0) return;
+    if (!highlights || highlights.length === 0 || !currentProfile) return;
     setVocabularyList((prev) => {
       const updated = [...prev];
       highlights.forEach((phrase) => {
@@ -134,6 +247,8 @@ export default function App() {
           });
         }
       });
+      // Save isolated for current profile
+      saveProfileVocab(currentProfile.id, updated);
       return updated;
     });
   };
@@ -171,21 +286,14 @@ export default function App() {
     setIsTimerRunning(true);
   }, [currentDay]);
 
-  // Save Progress whenever it changes
+  // Persist vocabulary list per profile
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(userProgress));
-    } catch {}
-  }, [userProgress]);
+    if (currentProfile) {
+      saveProfileVocab(currentProfile.id, vocabularyList);
+    }
+  }, [vocabularyList, currentProfile]);
 
-  // Save Vocabulary List whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(VOCAB_STORAGE_KEY, JSON.stringify(vocabularyList));
-    } catch {}
-  }, [vocabularyList]);
-
-  // Save Settings whenever it changes
+  // Save Settings
   useEffect(() => {
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify({ voiceName, autoPlayAudio }));
@@ -258,17 +366,14 @@ export default function App() {
 
       setMessages((prev) => [...prev, aiReplyMessage]);
 
-      // Automatically extract and store pedagogy highlights into persistent Vocabulary List
       if (data.pedagogyHighlights && data.pedagogyHighlights.length > 0) {
         extractAndStoreHighlights(data.pedagogyHighlights, currentDay, data.reply);
       }
 
-      // Play audio automatically if enabled
       if (autoPlayAudio && aiReplyMessage.content) {
         audioEngine.speakText(aiReplyMessage.content, { voiceName });
       }
     } catch {
-      // Graceful fallback
       const fallbackAi: ChatMessage = {
         id: `ai-err-${Date.now()}`,
         role: 'assistant',
@@ -286,22 +391,48 @@ export default function App() {
     }
   };
 
-  // Complete current day
+  // Complete current day: updates user progress and active profile
   const handleCompleteDay = () => {
-    setUserProgress((prev) => {
-      const isAlreadyCompleted = prev.completedDays.includes(currentDay);
-      const nextCompleted = isAlreadyCompleted
-        ? prev.completedDays
-        : [...prev.completedDays, currentDay];
+    const isAlreadyCompleted = userProgress.completedDays.includes(currentDay);
+    const nextCompleted = isAlreadyCompleted
+      ? userProgress.completedDays
+      : [...userProgress.completedDays, currentDay];
 
-      return {
-        ...prev,
+    const nextMinutes = userProgress.totalMinutesPracticed + 60;
+    const nextStreak = userProgress.streakDays + (isAlreadyCompleted ? 0 : 1);
+    const nextDay = Math.min(90, currentDay + 1);
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const nextProgress: UserProgress = {
+      ...userProgress,
+      completedDays: nextCompleted,
+      totalMinutesPracticed: nextMinutes,
+      streakDays: nextStreak,
+      currentDay: nextDay,
+      lastPracticeDate: todayStr,
+    };
+
+    setUserProgress(nextProgress);
+
+    // Persist into currentProfile and profiles list
+    if (currentProfile) {
+      const updatedProfile: UserProfile = {
+        ...currentProfile,
+        currentDay: nextDay,
         completedDays: nextCompleted,
-        totalMinutesPracticed: prev.totalMinutesPracticed + 60,
-        streakDays: prev.streakDays + (isAlreadyCompleted ? 0 : 1),
-        currentDay: Math.min(90, currentDay + 1),
+        totalMinutesPracticed: nextMinutes,
+        streakDays: nextStreak,
+        lastPracticeDate: todayStr,
+        lastActiveAt: Date.now(),
       };
-    });
+      setCurrentProfile(updatedProfile);
+
+      setProfiles((prev) => {
+        const nextList = prev.map((p) => (p.id === currentProfile.id ? updatedProfile : p));
+        saveStoredProfiles(nextList);
+        return nextList;
+      });
+    }
   };
 
   const handleSelectDayFromRoadmap = (day: number) => {
@@ -310,15 +441,33 @@ export default function App() {
   };
 
   const handleResetProgress = () => {
-    setUserProgress({
+    const resetProgress: UserProgress = {
       currentDay: 1,
       completedDays: [],
       totalMinutesPracticed: 0,
       streakDays: 1,
       lastPracticeDate: new Date().toISOString().split('T')[0],
-    });
+    };
+    setUserProgress(resetProgress);
     setCurrentDay(1);
     setCurrentStep('warmup');
+
+    if (currentProfile) {
+      const updatedProfile: UserProfile = {
+        ...currentProfile,
+        currentDay: 1,
+        completedDays: [],
+        totalMinutesPracticed: 0,
+        streakDays: 1,
+        lastPracticeDate: resetProgress.lastPracticeDate,
+      };
+      setCurrentProfile(updatedProfile);
+      setProfiles((prev) => {
+        const nextList = prev.map((p) => (p.id === currentProfile.id ? updatedProfile : p));
+        saveStoredProfiles(nextList);
+        return nextList;
+      });
+    }
   };
 
   // Vocabulary handlers
@@ -337,84 +486,113 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
-      {/* Header */}
-      <Header
-        currentLesson={currentLesson}
-        currentStep={currentStep}
-        onSelectStep={setCurrentStep}
-        timerSecondsRemaining={timerSecondsRemaining}
-        isTimerRunning={isTimerRunning}
-        onToggleTimer={() => setIsTimerRunning(!isTimerRunning)}
-        onResetTimer={() => setTimerSecondsRemaining(3600)}
-        userProgress={userProgress}
-        vocabularyCount={vocabularyList.length}
-        onOpenVocabulary={() => setShowVocabularyModal(true)}
-        onOpenRoadmap={() => setShowRoadmap(true)}
-        onOpenSettings={() => setShowSettings(true)}
+    <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white relative">
+      {/* Dynamic Background with Family Lantern Photo & Contrast Engine */}
+      <AppBackground settings={bgSettings} />
+
+      {/* Foreground Interactive Content Layer */}
+      <div className="relative z-10 flex flex-col min-h-screen">
+        {/* Header with Profile Switcher & Background Controls */}
+        <Header
+          currentLesson={currentLesson}
+          currentStep={currentStep}
+          onSelectStep={setCurrentStep}
+          timerSecondsRemaining={timerSecondsRemaining}
+          isTimerRunning={isTimerRunning}
+          onToggleTimer={() => setIsTimerRunning(!isTimerRunning)}
+          onResetTimer={() => setTimerSecondsRemaining(3600)}
+          userProgress={userProgress}
+          vocabularyCount={vocabularyList.length}
+          onOpenVocabulary={() => setShowVocabularyModal(true)}
+          onOpenRoadmap={() => setShowRoadmap(true)}
+          onOpenSettings={() => setShowSettings(true)}
+          currentProfile={currentProfile}
+          onOpenProfileModal={() => setShowProfileModal(true)}
+          onOpenBackgroundModal={() => setShowBgModal(true)}
+        />
+
+        {/* Main Workspace Container */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {currentStep === 'warmup' && (
+            <ModuleWarmup
+              lesson={currentLesson}
+              onProceedToRoleplay={() => {
+                setCurrentStep('roleplay');
+                audioEngine.playDing('step');
+              }}
+              voiceName={voiceName}
+            />
+          )}
+
+          {currentStep === 'roleplay' && (
+            <ModuleRoleplay
+              lesson={currentLesson}
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              isAiGenerating={isAiGenerating}
+              onProceedToShadowing={() => {
+                setCurrentStep('shadowing');
+                audioEngine.playDing('step');
+              }}
+              voiceName={voiceName}
+              autoPlayAudio={autoPlayAudio}
+            />
+          )}
+
+          {currentStep === 'shadowing' && (
+            <ModuleShadowing
+              lesson={currentLesson}
+              onProceedToDebrief={() => {
+                setCurrentStep('debrief');
+                audioEngine.playDing('step');
+              }}
+              voiceName={voiceName}
+            />
+          )}
+
+          {currentStep === 'debrief' && (
+            <ModuleDebrief
+              lesson={currentLesson}
+              messages={messages}
+              onCompleteDay={handleCompleteDay}
+              voiceName={voiceName}
+              userProgress={userProgress}
+              vocabularyList={vocabularyList}
+              sessionDurationMinutes={Math.max(1, Math.round((3600 - timerSecondsRemaining) / 60))}
+            />
+          )}
+        </main>
+
+        {/* Distraction-Free Footer */}
+        <footer className="border-t border-[#26354D]/60 bg-[#0B0F19]/80 backdrop-blur-md py-4 text-center text-xs text-slate-400">
+          <p>
+            LingoReflex • Tài khoản học viên: <strong className="text-white">{currentProfile?.name || 'Chưa chọn'}</strong> • Ngày {currentDay}/90 • 60 phút phản xạ mỗi ngày
+          </p>
+        </footer>
+      </div>
+
+      {/* Multi-User Profile Selection Modal (Shows at start or when switching profiles) */}
+      <ProfileSelectionModal
+        isOpen={showProfileModal}
+        profiles={profiles}
+        currentProfileId={currentProfile?.id || null}
+        onSelectProfile={handleSelectProfile}
+        onCreateProfile={handleCreateProfile}
+        onUpdateProfile={handleUpdateProfile}
+        onDeleteProfile={handleDeleteProfile}
+        canClose={!!currentProfile}
+        onClose={() => setShowProfileModal(false)}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Render Current Module */}
-        {currentStep === 'warmup' && (
-          <ModuleWarmup
-            lesson={currentLesson}
-            onProceedToRoleplay={() => {
-              setCurrentStep('roleplay');
-              audioEngine.playDing('step');
-            }}
-            voiceName={voiceName}
-          />
-        )}
+      {/* Background & Text Legibility Customizer Modal */}
+      <BackgroundCustomizerModal
+        isOpen={showBgModal}
+        onClose={() => setShowBgModal(false)}
+        settings={bgSettings}
+        onUpdateSettings={handleUpdateBgSettings}
+      />
 
-        {currentStep === 'roleplay' && (
-          <ModuleRoleplay
-            lesson={currentLesson}
-            messages={messages}
-            onSendMessage={handleSendMessage}
-            isAiGenerating={isAiGenerating}
-            onProceedToShadowing={() => {
-              setCurrentStep('shadowing');
-              audioEngine.playDing('step');
-            }}
-            voiceName={voiceName}
-            autoPlayAudio={autoPlayAudio}
-          />
-        )}
-
-        {currentStep === 'shadowing' && (
-          <ModuleShadowing
-            lesson={currentLesson}
-            onProceedToDebrief={() => {
-              setCurrentStep('debrief');
-              audioEngine.playDing('step');
-            }}
-            voiceName={voiceName}
-          />
-        )}
-
-        {currentStep === 'debrief' && (
-          <ModuleDebrief
-            lesson={currentLesson}
-            messages={messages}
-            onCompleteDay={handleCompleteDay}
-            voiceName={voiceName}
-            userProgress={userProgress}
-            vocabularyList={vocabularyList}
-            sessionDurationMinutes={Math.max(1, Math.round((3600 - timerSecondsRemaining) / 60))}
-          />
-        )}
-      </main>
-
-      {/* Clean Distraction-Free Footer */}
-      <footer className="border-t border-[#26354D]/60 bg-[#0B0F19] py-4 text-center text-xs text-slate-500">
-        <p>
-          LingoReflex • Không gian luyện phản xạ tiếng Anh trực tiếp • 60 phút mỗi ngày bứt phá B1+
-        </p>
-      </footer>
-
-      {/* Initial Trigger Modal (System Trigger Greeting) */}
+      {/* Initial Trigger Modal (if triggered) */}
       <InitialTriggerModal
         isOpen={showInitialTrigger}
         onStartDay1={() => {
@@ -462,4 +640,3 @@ export default function App() {
     </div>
   );
 }
-

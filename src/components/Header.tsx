@@ -14,8 +14,10 @@ import {
   Award,
   BookMarked,
   CheckCircle2,
+  Users,
+  Sliders,
 } from 'lucide-react';
-import { ModuleStep, UserProgress } from '../types';
+import { ModuleStep, UserProgress, UserProfile } from '../types';
 import { DayLesson } from '../data/curriculum';
 
 interface HeaderProps {
@@ -31,6 +33,9 @@ interface HeaderProps {
   onOpenVocabulary: () => void;
   onOpenRoadmap: () => void;
   onOpenSettings: () => void;
+  currentProfile: UserProfile | null;
+  onOpenProfileModal: () => void;
+  onOpenBackgroundModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -46,6 +51,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenVocabulary,
   onOpenRoadmap,
   onOpenSettings,
+  currentProfile,
+  onOpenProfileModal,
+  onOpenBackgroundModal,
 }) => {
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -69,10 +77,10 @@ export const Header: React.FC<HeaderProps> = ({
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0B0F19]/90 backdrop-blur-xl border-b border-[#26354D]/70 transition-colors">
+    <header className="sticky top-0 z-40 bg-[#0B0F19]/85 backdrop-blur-xl border-b border-[#26354D]/70 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
-          {/* Left: Minimalist Brand Badge */}
+        <div className="flex items-center justify-between h-16 gap-3">
+          {/* Left: Minimalist Brand Badge & Profile Switcher */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 p-0.5 shadow-md shadow-indigo-500/20 flex items-center justify-center">
               <div className="w-full h-full bg-[#0B0F19] rounded-[10px] flex items-center justify-center">
@@ -81,13 +89,30 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-base font-extrabold tracking-tight text-white font-sans">
+              <span className="text-base font-extrabold tracking-tight text-white font-sans hidden sm:inline">
                 LingoReflex
               </span>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
                 A2 → B1
               </span>
             </div>
+
+            {/* Current Active User Profile Pill */}
+            {currentProfile && (
+              <button
+                onClick={onOpenProfileModal}
+                className="flex items-center gap-1.5 bg-[#161F30] hover:bg-[#1E2B42] text-white border border-[#26354D] hover:border-indigo-500/50 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer group"
+                title="Đổi tài khoản người học (Không cần mật khẩu)"
+              >
+                <span className="text-sm">{currentProfile.avatar || '👤'}</span>
+                <span className="font-bold text-slate-200 group-hover:text-white max-w-[90px] truncate">
+                  {currentProfile.name}
+                </span>
+                <span className="text-[10px] text-indigo-400 font-normal">
+                  (Đổi)
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Center: Distraction-Free 4-Step Stepper (60-minute daily cycle) */}
@@ -164,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Streak Counter Widget */}
             <div
               className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl text-amber-400 text-xs font-semibold shadow-sm"
-              title="Chuỗi ngày luyện tập liên tục"
+              title="Chuỗi ngày luyện tập liên tục của bạn"
             >
               <Flame className="w-3.5 h-3.5 fill-amber-400 text-amber-400 animate-pulse" />
               <span>{userProgress.streakDays}d</span>
@@ -174,10 +199,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenVocabulary}
               className="flex items-center gap-1.5 bg-[#161F30] hover:bg-[#1E2B42] text-slate-200 border border-[#26354D] px-2.5 sm:px-3 py-1 rounded-xl text-xs font-medium transition-all shadow-sm cursor-pointer group"
-              title="Mở Sổ Từ Vựng Phản Xạ"
+              title="Mở Sổ Từ Vựng Phản Xạ của bạn"
             >
               <BookMarked className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-300" />
-              <span className="hidden sm:inline">Từ vựng</span>
+              <span className="hidden md:inline">Từ vựng</span>
               <span className="px-1.5 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-mono font-bold border border-indigo-500/30">
                 {vocabularyCount}
               </span>
@@ -193,6 +218,15 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Ngày {currentLesson.day}/90</span>
             </button>
 
+            {/* Background Customizer Trigger */}
+            <button
+              onClick={onOpenBackgroundModal}
+              className="p-1.5 rounded-xl bg-[#161F30] hover:bg-[#1E2B42] text-amber-400 hover:text-amber-300 border border-[#26354D] transition-colors cursor-pointer"
+              title="Chỉnh ảnh nền, độ mờ & độ sáng"
+            >
+              <Sliders className="w-4 h-4" />
+            </button>
+
             {/* Settings Trigger */}
             <button
               onClick={onOpenSettings}
@@ -206,7 +240,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Mobile/Tablet Sub-Stepper */}
-      <div className="lg:hidden border-t border-[#26354D]/60 bg-[#0B0F19] overflow-x-auto scrollbar-none px-4 py-1.5">
+      <div className="lg:hidden border-t border-[#26354D]/60 bg-[#0B0F19]/90 overflow-x-auto scrollbar-none px-4 py-1.5">
         <div className="flex items-center justify-between gap-1 min-w-[340px]">
           {steps.map((st) => {
             const isActive = currentStep === st.id;

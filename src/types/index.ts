@@ -42,6 +42,31 @@ export interface UserProgress {
   lastPracticeDate: string;
 }
 
+export interface UserProfile {
+  id: string;
+  name: string;
+  avatar: string; // Emoji avatar e.g. '👨', '👩', '👧', '👦', '🎓', '🚀', '🌟', '☕'
+  roleLabel?: string; // e.g. 'Bố', 'Mẹ', 'Bé', 'Học viên'
+  colorTheme: string; // e.g. 'indigo' | 'emerald' | 'amber' | 'rose' | 'sky' | 'purple'
+  currentDay: number;
+  completedDays: number[];
+  totalMinutesPracticed: number;
+  streakDays: number;
+  lastPracticeDate: string;
+  voiceName?: string;
+  autoPlayAudio?: boolean;
+  createdAt: number;
+  lastActiveAt: number;
+}
+
+export interface BackgroundSettings {
+  customImage: string | null; // data URL or custom image
+  opacity: number; // 0.1 to 0.8 (default 0.35)
+  blurPx: number; // 0 to 20px (default 6)
+  brightness: number; // 0.3 to 1.0 (default 0.75)
+  overlayMode: 'obsidian' | 'slate' | 'cinema'; // tint color
+}
+
 export interface VocabularyItem {
   id: string;
   phrase: string;
