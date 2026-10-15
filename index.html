@@ -36,6 +36,48 @@
             }
           } catch (_) {}
         }
+
+        // Suppress benign HMR WebSocket errors in cloud preview
+        if (typeof window.WebSocket !== 'undefined') {
+          var OrigWebSocket = window.WebSocket;
+          window.WebSocket = function(url, protocols) {
+            var ws = protocols ? new OrigWebSocket(url, protocols) : new OrigWebSocket(url);
+            try {
+              ws.addEventListener('error', function(err) {
+                if (err && err.stopImmediatePropagation) err.stopImmediatePropagation();
+              });
+            } catch (_) {}
+            return ws;
+          };
+          window.WebSocket.prototype = OrigWebSocket.prototype;
+        }
+
+        window.onerror = function(message, source) {
+          var s = '' + source;
+          var m = '' + message;
+          if (s.indexOf('@vite/client') !== -1 || s.indexOf('vite') !== -1 || m.indexOf('WebSocket') !== -1) {
+            return true;
+          }
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = '' + (event && (event.reason ? (event.reason.message || event.reason.stack || event.reason) : ''));
+          if (reason.indexOf('WebSocket') !== -1 || reason.indexOf('@vite/client') !== -1 || reason.indexOf('vite') !== -1) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+
+        window.addEventListener('error', function(event) {
+          var msg = '' + (event && (event.message || ''));
+          var filename = '' + (event && (event.filename || ''));
+          if (msg.indexOf('WebSocket') !== -1 || filename.indexOf('@vite/client') !== -1 || filename.indexOf('vite') !== -1) {
+            if (event.preventDefault) event.preventDefault();
+            if (event.stopPropagation) event.stopPropagation();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
       })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

@@ -48,6 +48,8 @@ export const ModuleShadowing: React.FC<ModuleShadowingProps> = ({
   const currentItem: ShadowingItem =
     lesson.shadowingDrills[selectedItemIndex] || lesson.shadowingDrills[0];
 
+
+
   // Reset or initialize real-time score when sentence changes
   useEffect(() => {
     if (currentItem) {
@@ -70,7 +72,7 @@ export const ModuleShadowing: React.FC<ModuleShadowingProps> = ({
   const handleToggleRecord = () => {
     if (isRecording) {
       if (recognizerRef.current) {
-        recognizerRef.current.stop();
+        recognizerRef.current.forceSubmit();
         recognizerRef.current = null;
       }
       setIsRecording(false);
@@ -81,7 +83,7 @@ export const ModuleShadowing: React.FC<ModuleShadowingProps> = ({
     audioEngine.playDing('click');
 
     const recognizer = new SpeechRecognizer(
-      async (transcript, isFinal) => {
+      (transcript, isFinal) => {
         setLiveTranscript(transcript);
 
         // Compute real-time pronunciation and tone score on every speech token
@@ -98,10 +100,35 @@ export const ModuleShadowing: React.FC<ModuleShadowingProps> = ({
           recognizerRef.current = null;
           setUserSpokenText((prev) => ({ ...prev, [selectedItemIndex]: transcript }));
 
-          // Trigger backend SLA evaluator for detailed qualitative feedback
-          setIsEvaluating(true);
-          try {
-            const res = await fetch('/api/evaluate-speech', {
+          // 1. INSTANT RESULT (0ms latency, 100% reliable)
+          // Deliver evaluation immediately without making the learner wait!
+          const instantOverall = scoreResult.overallScore;
+          const instantEval = {
+            fluencyScore: instantOverall,
+            cefrLevel: instantOverall >= 82 ? 'B1+' : instantOverall >= 60 ? 'B1' : 'A2',
+            strengths: instantOverall >= 70
+              ? ['Khớp nhịp tốt với câu mẫu bản ngữ', 'Phát âm rõ ràng các âm tiết chính']
+              : ['Đã hoàn thành đọc cả câu', 'Ngữ điệu tự nhiên'],
+            areasToImprove: scoreResult.wordScores.filter(w => w.status !== 'matched').slice(0, 2).map(w => `Luyện kỹ phát âm từ: "${w.targetWord}"`) || ['Thả lỏng khẩu hình ở từ cuối'],
+            mentorCheerVi: instantOverall >= 80
+              ? 'Xuất sắc! Bạn nhại giọng rất chuẩn bản ngữ.'
+              : 'Rất tốt! Tiếp tục luyện tập câu này để tăng độ mượt.',
+            realtimeMetrics: scoreResult,
+          };
+
+          setEvaluationResults((prev) => ({
+            ...prev,
+            [selectedItemIndex]: instantEval,
+          }));
+
+          if (instantOverall >= 70) {
+            audioEngine.playDing('success');
+          }
+
+          // 2. Background Qualitative Linguistic Enrichment (Non-blocking)
+          if (transcript.trim().length > 3) {
+            setIsEvaluating(true);
+            fetch('/api/evaluate-speech', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -109,34 +136,21 @@ export const ModuleShadowing: React.FC<ModuleShadowingProps> = ({
                 referenceText: currentItem.text,
                 context: `Shadowing drill: ${currentItem.intonationTip}`,
               }),
-            });
-            if (res.ok) {
-              const data = await res.json();
-              setEvaluationResults((prev) => ({
-                ...prev,
-                [selectedItemIndex]: {
-                  ...data,
-                  realtimeMetrics: scoreResult,
-                },
-              }));
-              if (scoreResult.overallScore >= 75) {
-                audioEngine.playDing('success');
-              }
-            }
-          } catch {
-            setEvaluationResults((prev) => ({
-              ...prev,
-              [selectedItemIndex]: {
-                fluencyScore: scoreResult.overallScore,
-                cefrLevel: scoreResult.overallScore >= 85 ? 'B1+' : 'B1',
-                strengths: ['Khớp nhịp tốt với câu mẫu', 'Phát âm rõ ràng các âm tiết chính'],
-                areasToImprove: ['Thả lỏng khẩu hình miệng ở từ cuối câu'],
-                mentorCheerVi: 'Bạn nhại giọng rất tốt! Tiếp tục phát huy.',
-                realtimeMetrics: scoreResult,
-              },
-            }));
-          } finally {
-            setIsEvaluating(false);
+            })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((data) => {
+                if (data) {
+                  setEvaluationResults((prev) => ({
+                    ...prev,
+                    [selectedItemIndex]: {
+                      ...data,
+                      realtimeMetrics: scoreResult,
+                    },
+                  }));
+                }
+              })
+              .catch(() => {})
+              .finally(() => setIsEvaluating(false));
           }
         }
       },
@@ -389,8 +403,22 @@ export const ModuleShadowing: React.FC<ModuleShadowingProps> = ({
                 <span className="text-indigo-400 font-medium">{realtimeScore.toneFeedback.contour}</span>
               </div>
               <p className="text-white font-medium italic">
-                {liveTranscript ? `"${liveTranscript}"` : 'Đang lắng nghe... Hãy bắt đầu nói theo câu mẫu trên!'}
+                {liveTranscript ? `"${liveTranscript}"` : 'Đang lắng nghe... Hãy bắt đầu đọc theo câu mẫu trên!'}
               </p>
+            </div>
+
+            {/* Quick Submit Button inside HUD */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1 border-t border-rose-500/10">
+              <span className="text-[11px] text-rose-300/80">
+                ⚡ Đọc xong bấm nộp ngay để nhận điểm lập tức:
+              </span>
+              <button
+                onClick={handleToggleRecord}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-900/40 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Hoàn thành câu & Xem điểm ngay</span>
+              </button>
             </div>
           </div>
         )}

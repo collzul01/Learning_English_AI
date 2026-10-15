@@ -129,7 +129,7 @@ export const ModuleRoleplay: React.FC<ModuleRoleplayProps> = ({
     if (!isRecording) return;
 
     if (recognizerRef.current) {
-      recognizerRef.current.stop();
+      recognizerRef.current.forceSubmit();
       recognizerRef.current = null;
     }
     setIsRecording(false);

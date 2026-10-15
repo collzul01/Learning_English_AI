@@ -32,7 +32,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   const voices = [
-    { id: 'Kore', label: 'Kore (Nữ tính, Ấm áp & Sư phạm)', style: 'Giọng đọc chuẩn giảng viên SLA' },
+    { id: 'Aoede', label: 'Aoede (Tự nhiên, Ngữ điệu Bản xứ & Rõ âm)', style: 'Giọng bản xứ tự nhiên, ngữ điệu truyền cảm nhất (Khuyên dùng)' },
+    { id: 'Kore', label: 'Kore (Nữ tính, Ấm áp & Sư phạm)', style: 'Giọng chuẩn giáo sư ngôn ngữ học SLA' },
     { id: 'Zephyr', label: 'Zephyr (Nam tính, Tự nhiên & Trầm ấm)', style: 'Giọng giao tiếp đời sống hiện đại' },
     { id: 'Puck', label: 'Puck (Tươi vui, Năng động)', style: 'Giọng trẻ trung, phản xạ nhanh' },
     { id: 'Fenrir', label: 'Fenrir (Chững chạc, Quyết đoán)', style: 'Giọng đối thoại công sở & đàm phán' },

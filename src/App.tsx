@@ -48,10 +48,9 @@ export default function App() {
   });
 
   // Modal to select user profile at start or on switch
-  const [showProfileModal, setShowProfileModal] = useState<boolean>(() => {
-    // Show profile modal at start if no active profile was saved or explicitly connected
-    return !getActiveProfileId();
-  });
+  // Always open on initial load so any learner in the family can pick their account with 1 click!
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(true);
+  const [welcomeNotification, setWelcomeNotification] = useState<string | null>(null);
 
   // 2. Background Settings (with family lantern theme & contrast adjustments)
   const [bgSettings, setBgSettings] = useState<BackgroundSettings>(getStoredBgSettings);
@@ -88,7 +87,7 @@ export default function App() {
 
   // 5. System Settings
   const [voiceName, setVoiceName] = useState<string>(() => {
-    return currentProfile?.voiceName || 'Kore';
+    return currentProfile?.voiceName || 'Aoede';
   });
 
   const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(() => {
@@ -153,6 +152,14 @@ export default function App() {
     if (profile.voiceName) {
       setVoiceName(profile.voiceName);
     }
+
+    const targetLesson = getLessonForDay(nextDay);
+    setWelcomeNotification(
+      `Chào mừng ${profile.name}! Đã mở Ngày ${nextDay}: ${targetLesson.titleVi} để bạn tiếp tục học.`
+    );
+    setTimeout(() => {
+      setWelcomeNotification(null);
+    }, 6000);
 
     setShowProfileModal(false);
     audioEngine.playDing('success');
@@ -510,6 +517,14 @@ export default function App() {
           onOpenProfileModal={() => setShowProfileModal(true)}
           onOpenBackgroundModal={() => setShowBgModal(true)}
         />
+
+        {/* Welcome Toast Banner */}
+        {welcomeNotification && (
+          <div className="bg-gradient-to-r from-indigo-950/90 via-slate-900 to-indigo-950/90 border-b border-indigo-500/30 py-2.5 px-4 text-center text-xs font-semibold text-indigo-200 animate-fadeIn flex items-center justify-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>{welcomeNotification}</span>
+          </div>
+        )}
 
         {/* Main Workspace Container */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">

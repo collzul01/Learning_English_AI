@@ -17,7 +17,7 @@ export const DEFAULT_PROFILES: UserProfile[] = [
     totalMinutesPracticed: 180,
     streakDays: 4,
     lastPracticeDate: new Date().toISOString().split('T')[0],
-    voiceName: 'Kore',
+    voiceName: 'Aoede',
     autoPlayAudio: true,
     createdAt: Date.now() - 4 * 86400000,
     lastActiveAt: Date.now(),

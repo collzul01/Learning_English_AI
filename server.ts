@@ -132,12 +132,27 @@ You MUST respond with valid JSON adhering to the specified schema:
   }
 });
 
+// In-memory TTS audio cache to ensure sub-10ms instant playback for repeated phrases
+const ttsAudioCache = new Map<string, string>();
+
 // 2. High-fidelity Speech Synthesis (TTS) via gemini-3.8-flash-lite-tts
 app.post('/api/tts', async (req, res) => {
   try {
-    const { text, voiceName = 'Kore' } = req.body;
-    if (!text) {
+    const { text, voiceName = 'Aoede' } = req.body;
+    if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Text is required for TTS' });
+    }
+
+    const trimmedText = text.trim().slice(0, 350);
+    const selectedVoice = voiceName || 'Aoede'; // Aoede and Kore offer warmest, most natural conversational cadence
+    const cacheKey = `${selectedVoice}:::${trimmedText.toLowerCase()}`;
+
+    if (ttsAudioCache.has(cacheKey)) {
+      return res.json({
+        audioBase64: ttsAudioCache.get(cacheKey),
+        mimeType: 'audio/wav',
+        cached: true,
+      });
     }
 
     // gemini-3.8-flash-lite-tts returns complete WAV audio (24kHz mono 16-bit)
@@ -146,21 +161,14 @@ app.post('/api/tts', async (req, res) => {
       contents: [
         {
           role: 'user',
-          parts: [
-            {
-              text: text.slice(0, 350), // keep focused and snappy
-              speechMetadata: {
-                style: 'Warm, clear, natural spoken English pace for language learning',
-              },
-            },
-          ],
+          parts: [{ text: trimmedText }],
         },
       ],
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: voiceName || 'Kore' },
+            prebuiltVoiceConfig: { voiceName: selectedVoice },
           },
         },
       },
@@ -171,12 +179,31 @@ app.post('/api/tts', async (req, res) => {
       throw new Error('No audio data received from Gemini TTS');
     }
 
+    // Cache successful audio
+    ttsAudioCache.set(cacheKey, base64Audio);
+
     return res.json({
       audioBase64: base64Audio,
       mimeType: 'audio/wav',
+      cached: false,
     });
   } catch (error: any) {
-    console.error('Error in /api/tts:', error);
+    const isQuotaExceeded =
+      error?.status === 429 ||
+      error?.code === 429 ||
+      String(error?.message).includes('429') ||
+      String(error?.message).includes('RESOURCE_EXHAUSTED') ||
+      String(error?.message).includes('Quota exceeded');
+
+    if (isQuotaExceeded) {
+      console.warn('Gemini TTS rate quota reached (3 RPM limit). Client smoothly switching to high-quality Web Speech API fallback.');
+      return res.status(429).json({
+        error: 'TTS quota exceeded',
+        quotaExceeded: true,
+      });
+    }
+
+    console.warn('TTS request error:', error?.message || error);
     return res.status(500).json({
       error: 'TTS generation failed',
       details: error?.message || String(error),

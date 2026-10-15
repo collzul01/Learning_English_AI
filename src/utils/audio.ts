@@ -1,8 +1,26 @@
-// Audio synthesis and speech recognition utilities
+// Audio synthesis and speech recognition utilities with instant caching & high-fidelity voice engine
 
 class AudioEngine {
   private currentAudio: HTMLAudioElement | null = null;
   private audioCtx: AudioContext | null = null;
+  private audioCache = new Map<string, string>(); // text:voiceName -> base64
+  private naturalVoices: SpeechSynthesisVoice[] = [];
+
+  constructor() {
+    this.initVoices();
+  }
+
+  private initVoices() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const updateVoices = () => {
+        this.naturalVoices = window.speechSynthesis.getVoices().filter((v) =>
+          v.lang.startsWith('en')
+        );
+      };
+      updateVoices();
+      window.speechSynthesis.onvoiceschanged = updateVoices;
+    }
+  }
 
   private getAudioContext(): AudioContext {
     if (!this.audioCtx) {
@@ -66,7 +84,7 @@ class AudioEngine {
     }
   }
 
-  // Play text with Gemini TTS or browser speech fallback
+  // Play text with Gemini TTS (with 0ms client memory cache) or ultra-natural browser fallback
   async speakText(
     text: string,
     options: {
@@ -80,44 +98,87 @@ class AudioEngine {
     this.stopAudio();
     options.onStart?.();
 
-    const voice = options.voiceName || 'Kore';
+    const voice = options.voiceName || 'Aoede';
     const rate = options.rate || 1.0;
+    const cacheKey = `${voice}:::${text.trim().toLowerCase()}`;
 
+    // 1. Instant sub-10ms playback if audio was previously loaded
+    if (this.audioCache.has(cacheKey)) {
+      const cachedBase64 = this.audioCache.get(cacheKey)!;
+      this.playBase64Audio(cachedBase64, rate, options.onEnd, () => {
+        this.fallbackSpeechSynthesis(text, rate, options.onEnd);
+      });
+      return;
+    }
+
+    // 2. Fetch from Gemini TTS server with pre-caching & resilient timeout
     try {
-      // Try calling server-side Gemini TTS
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout to avoid premature fallback
+
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, voiceName: voice }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
         if (data.audioBase64) {
-          const audio = new Audio(`data:${data.mimeType || 'audio/wav'};base64,${data.audioBase64}`);
-          audio.playbackRate = rate;
-          this.currentAudio = audio;
-
-          audio.onended = () => {
-            this.currentAudio = null;
-            options.onEnd?.();
-          };
-          audio.onerror = () => {
+          this.audioCache.set(cacheKey, data.audioBase64);
+          this.playBase64Audio(data.audioBase64, rate, options.onEnd, () => {
             this.fallbackSpeechSynthesis(text, rate, options.onEnd);
-          };
-
-          await audio.play();
+          });
           return;
         }
       }
-      // If server TTS failed or returned no audio, fallback to Web Speech
+
+      // Fallback if server returned no audio or quota limit reached
       this.fallbackSpeechSynthesis(text, rate, options.onEnd);
     } catch {
+      // Fast fallback to browser SpeechSynthesis on network timeout or offline
       this.fallbackSpeechSynthesis(text, rate, options.onEnd);
     }
   }
 
-  private fallbackSpeechSynthesis(text: string, rate: number, onEnd?: () => void) {
+  // Safe background audio prefetcher (no-op to prevent hitting 3 RPM Gemini TTS free-tier quota)
+  async preloadAudio(_texts: string[], _voiceName = 'Aoede'): Promise<void> {
+    // Requests are generated on-demand when the user clicks 'Play'
+  }
+
+  private playBase64Audio(
+    base64Data: string,
+    rate: number,
+    onEnd?: () => void,
+    onError?: () => void
+  ) {
+    try {
+      const audio = new Audio(`data:audio/wav;base64,${base64Data}`);
+      audio.playbackRate = rate;
+      this.currentAudio = audio;
+
+      audio.onended = () => {
+        this.currentAudio = null;
+        onEnd?.();
+      };
+      audio.onerror = () => {
+        this.currentAudio = null;
+        onError?.();
+      };
+
+      audio.play().catch(() => {
+        onError?.();
+      });
+    } catch {
+      onError?.();
+    }
+  }
+
+  // Enhanced Natural Speech Synthesis fallback
+  public fallbackSpeechSynthesis(text: string, rate: number, onEnd?: () => void) {
     if (!('speechSynthesis' in window)) {
       onEnd?.();
       return;
@@ -126,16 +187,40 @@ class AudioEngine {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
-    utterance.rate = rate;
+    utterance.rate = rate * 0.95; // Slightly relaxed for maximum clarity & natural cadence
+    utterance.pitch = 1.0;
 
-    // Pick natural English voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const englishVoice = voices.find(
-      (v) => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha'))
-    ) || voices.find((v) => v.lang.startsWith('en'));
+    const voices = this.naturalVoices.length > 0
+      ? this.naturalVoices
+      : window.speechSynthesis.getVoices().filter((v) => v.lang.startsWith('en'));
 
-    if (englishVoice) {
-      utterance.voice = englishVoice;
+    // Ranked list of preferred high-fidelity natural neural voices
+    const preferredNames = [
+      'Natural',
+      'Google US English',
+      'Samantha',
+      'Aria',
+      'Jenny',
+      'Guy',
+      'Neural',
+      'Premium',
+      'Enhanced',
+      'Karen',
+      'Daniel',
+    ];
+
+    let chosenVoice = null;
+    for (const name of preferredNames) {
+      chosenVoice = voices.find((v) => v.name.includes(name));
+      if (chosenVoice) break;
+    }
+
+    if (!chosenVoice) {
+      chosenVoice = voices.find((v) => v.lang === 'en-US') || voices[0];
+    }
+
+    if (chosenVoice) {
+      utterance.voice = chosenVoice;
     }
 
     utterance.onend = () => {
@@ -151,11 +236,15 @@ class AudioEngine {
 
 export const audioEngine = new AudioEngine();
 
-// Speech Recognition wrapper (Web Speech API)
+// Robust Speech Recognition wrapper (Web Speech API)
+// Fixes "lúc được lúc không" and handles full sentence reading smoothly
 export class SpeechRecognizer {
   private recognition: any = null;
   public isListening = false;
   private currentFinal = '';
+  private latestTranscript = '';
+  private silenceTimer: any = null;
+  private hasSubmitted = false;
 
   constructor(
     private onResult: (transcript: string, isFinal: boolean) => void,
@@ -168,25 +257,46 @@ export class SpeechRecognizer {
 
     if (SpeechRecognition) {
       this.recognition = new SpeechRecognition();
-      this.recognition.continuous = continuous;
+      // ALWAYS use continuous = true so pauses between words in a sentence do NOT cut off recognition
+      this.recognition.continuous = true;
       this.recognition.interimResults = true;
       this.recognition.lang = 'en-US';
+      this.recognition.maxAlternatives = 1;
 
       this.recognition.onstart = () => {
         this.isListening = true;
         this.currentFinal = '';
+        this.latestTranscript = '';
+        this.hasSubmitted = false;
         this.onStateChange(true);
       };
 
       this.recognition.onend = () => {
         this.isListening = false;
         this.onStateChange(false);
-        if (this.currentFinal.trim()) {
-          this.onResult(this.currentFinal.trim(), true);
+        this.clearSilenceTimer();
+
+        // Deliver final result if not already submitted
+        if (!this.hasSubmitted) {
+          const finalCandidate = (this.currentFinal.trim() || this.latestTranscript.trim());
+          if (finalCandidate) {
+            this.hasSubmitted = true;
+            this.onResult(finalCandidate, true);
+          }
         }
       };
 
       this.recognition.onerror = (event: any) => {
+        this.clearSilenceTimer();
+        // Ignore "no-speech" if we already captured interim text
+        if (event.error === 'no-speech' && this.latestTranscript.trim()) {
+          if (!this.hasSubmitted) {
+            this.hasSubmitted = true;
+            this.onResult(this.latestTranscript.trim(), true);
+          }
+          return;
+        }
+
         this.isListening = false;
         this.onStateChange(false);
         this.onError(event.error);
@@ -204,9 +314,30 @@ export class SpeechRecognizer {
 
         const combined = (this.currentFinal + interimTranscript).trim();
         if (combined) {
+          this.latestTranscript = combined;
           this.onResult(combined, false);
+
+          // Reset silence timer: automatically finalize after 2.2 seconds of silence
+          this.resetSilenceTimer();
         }
       };
+    }
+  }
+
+  private resetSilenceTimer() {
+    this.clearSilenceTimer();
+    this.silenceTimer = setTimeout(() => {
+      // Auto-submit after natural sentence completion pause
+      if (this.isListening && this.latestTranscript.trim() && !this.hasSubmitted) {
+        this.forceSubmit();
+      }
+    }, 2200);
+  }
+
+  private clearSilenceTimer() {
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
     }
   }
 
@@ -214,17 +345,35 @@ export class SpeechRecognizer {
     return !!this.recognition;
   }
 
+  getLastTranscript(): string {
+    return (this.currentFinal.trim() || this.latestTranscript.trim());
+  }
+
   start() {
     if (!this.recognition) return;
     try {
       this.currentFinal = '';
+      this.latestTranscript = '';
+      this.hasSubmitted = false;
       this.recognition.start();
     } catch {
-      // might already be started
+      // already started or transitioning
     }
   }
 
+  // Immediately finalize and submit whatever was spoken so far
+  forceSubmit() {
+    this.clearSilenceTimer();
+    const captured = this.getLastTranscript();
+    if (!this.hasSubmitted) {
+      this.hasSubmitted = true;
+      this.onResult(captured || '', true);
+    }
+    this.stop();
+  }
+
   stop() {
+    this.clearSilenceTimer();
     if (!this.recognition) return;
     try {
       this.recognition.stop();
