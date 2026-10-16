@@ -1,21 +1,17 @@
-/**
- * Real-time Pronunciation & Tone Scoring Utility (SLA Phonology Engine)
- */
-
 export interface WordScore {
   targetWord: string;
   cleanTarget: string;
   status: 'matched' | 'partial' | 'missed' | 'pending';
   spokenWord?: string;
-  similarity: number; // 0 to 1
+  similarity: number;
 }
 
 export interface RealtimePronunciationResult {
-  overallScore: number; // 0 - 100
-  articulationScore: number; // 0 - 100
-  toneRhythmScore: number; // 0 - 100
+  overallScore: number;
+  articulationScore: number;
+  toneRhythmScore: number;
   toneFeedback: {
-    contour: string; // e.g. "Lên giọng cuối câu ↗" or "Hạ giọng dứt khoát ↘"
+    contour: string;
     status: 'excellent' | 'good' | 'needs_work';
     adviceVi: string;
   };
@@ -28,12 +24,10 @@ export interface RealtimePronunciationResult {
   isCompleted: boolean;
 }
 
-// Clean string for word comparison (removes punctuation, lowercases)
 export function cleanToken(word: string): string {
   return word.toLowerCase().replace(/[^a-z0-9']/g, '');
 }
 
-// Compute simple Levenshtein similarity (0 to 1)
 export function calculateSimilarity(s1: string, s2: string): number {
   if (s1 === s2) return 1.0;
   if (!s1 || !s2) return 0.0;
@@ -65,9 +59,6 @@ export function calculateSimilarity(s1: string, s2: string): number {
   return Math.max(0, 1 - distance / maxLen);
 }
 
-/**
- * Evaluates real-time spoken transcript against a reference sentence
- */
 export function scorePronunciationRealtime(
   targetSentence: string,
   spokenTranscript: string,
@@ -92,7 +83,6 @@ export function scorePronunciationRealtime(
       const currentSpoken = cleanSpokenWords[spokenIndex];
       const sim = calculateSimilarity(target, currentSpoken);
 
-      // Check next word for possible skip
       const nextSpoken =
         spokenIndex + 1 < cleanSpokenWords.length ? cleanSpokenWords[spokenIndex + 1] : null;
       const nextSim = nextSpoken ? calculateSimilarity(target, nextSpoken) : 0;
@@ -109,7 +99,6 @@ export function scorePronunciationRealtime(
         totalSimilarity += 1.0;
         spokenIndex++;
       } else if (nextSim >= 0.75) {
-        // User might have stumbled on a filler word
         wordScores.push({
           targetWord: rawTarget,
           cleanTarget: target,
@@ -148,33 +137,32 @@ export function scorePronunciationRealtime(
     }
   }
 
-  // Calculate scores
-  const wordsConsidered = Math.max(1, Math.min(spokenWords.length, targetWords.length));
   const completionRatio = Math.min(1.0, spokenWords.length / Math.max(1, targetWords.length));
 
   const articulationScore = Math.round(
     Math.min(100, Math.max(0, (totalSimilarity / Math.max(1, targetWords.length)) * 100))
   );
 
-  // Tone & Rhythm analysis
   const isQuestion = targetSentence.trim().endsWith('?');
-  const expectedTone = isQuestion ? 'Lên giọng cuối câu ↗ (Rising Tone)' : 'Hạ giọng dứt khoát ↘ (Falling Tone)';
+  const expectedTone = isQuestion
+    ? 'Lên giọng cuối câu (Rising Tone)'
+    : 'Hạ giọng dứt khoát (Falling Tone)';
 
   let toneStatus: 'excellent' | 'good' | 'needs_work' = 'good';
   let toneRhythmScore = 80;
-  let toneAdviceVi = 'Nhịp điệu tự nhiên, giữ vững cao độ nhấn vào từ khóa.';
+  let toneAdviceVi = 'Nhịp điệu tự nhiên, giữ độ vang giọng ổn định.';
 
   if (completionRatio > 0.85 && articulationScore >= 80) {
     toneStatus = 'excellent';
     toneRhythmScore = Math.min(100, articulationScore + 8);
-    toneAdviceVi = `Khớp nhịp xuất sắc! Bạn đã thể hiện đúng ${expectedTone}.`;
+    toneAdviceVi = `Khớp nhịp xuất sắc! Bạn thể hiện rất chuẩn ${expectedTone}.`;
   } else if (completionRatio < 0.5) {
     toneStatus = 'needs_work';
     toneRhythmScore = Math.max(30, Math.round(articulationScore * 0.7));
-    toneAdviceVi = 'Tốc độ hơi ngập ngừng. Hãy thả lỏng cơ hàm và phát âm liền mạch hơn.';
+    toneAdviceVi = 'Tốc độ hơi ngập ngừng. Hãy đọc liền mạch từng cụm từ.';
   } else {
     toneRhythmScore = Math.round(articulationScore * 0.9);
-    toneAdviceVi = `Chú ý trọng âm câu: ${intonationTip || expectedTone}.`;
+    toneAdviceVi = `Chú ý ngữ điệu: ${intonationTip || expectedTone}.`;
   }
 
   const overallScore = Math.round(articulationScore * 0.65 + toneRhythmScore * 0.35);
@@ -193,8 +181,8 @@ export function scorePronunciationRealtime(
       totalCount: targetWords.length,
       adviceVi:
         matchedCount === targetWords.length
-          ? 'Độ chuẩn xác âm vị (Phoneme clarity) đạt mức tuyệt hảo!'
-          : `Đã phát âm rõ ${matchedCount}/${targetWords.length} từ. Chú ý các từ chưa bắt được âm.`,
+          ? 'Độ chuẩn âm (Phoneme clarity) đạt mức tuyệt vời!'
+          : `Đã khớp rõ ${matchedCount}/${targetWords.length} từ. Chú ý phát âm rõ âm cuối.`,
     },
     wordScores,
     isCompleted: completionRatio >= 0.9,

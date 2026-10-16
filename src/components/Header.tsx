@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sparkles,
   Clock,
@@ -7,15 +7,14 @@ import {
   Settings,
   Play,
   Pause,
-  RotateCcw,
   BookOpen,
   Headphones,
   MessageSquare,
   Award,
   BookMarked,
   CheckCircle2,
-  Users,
   Sliders,
+  ChevronDown,
 } from 'lucide-react';
 import { ModuleStep, UserProgress, UserProfile } from '../types';
 import { DayLesson } from '../data/curriculum';
@@ -55,69 +54,114 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenProfileModal,
   onOpenBackgroundModal,
 }) => {
+  const [paceMode, setPaceMode] = useState<'60m' | '30m' | '15m'>('60m');
+
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
+  const durationMap = {
+    '60m': { warmup: '10p', roleplay: '25p', shadowing: '15p', debrief: '10p' },
+    '30m': { warmup: '5p', roleplay: '12p', shadowing: '8p', debrief: '5p' },
+    '15m': { warmup: '3p', roleplay: '6p', shadowing: '4p', debrief: '2p' },
+  };
+
   const steps: {
     id: ModuleStep;
     stepNumber: number;
     title: string;
+    subtitle: string;
     duration: string;
     icon: React.ComponentType<{ className?: string }>;
   }[] = [
-    { id: 'warmup', stepNumber: 1, title: 'Warm-up', duration: '10m', icon: BookOpen },
-    { id: 'roleplay', stepNumber: 2, title: 'Role-play', duration: '25m', icon: MessageSquare },
-    { id: 'shadowing', stepNumber: 3, title: 'Shadowing', duration: '15m', icon: Headphones },
-    { id: 'debrief', stepNumber: 4, title: 'Debrief', duration: '10m', icon: Award },
+    {
+      id: 'warmup',
+      stepNumber: 1,
+      title: 'Khởi động',
+      subtitle: 'Cụm từ i+1',
+      duration: durationMap[paceMode].warmup,
+      icon: BookOpen,
+    },
+    {
+      id: 'roleplay',
+      stepNumber: 2,
+      title: 'Phản xạ 1-1',
+      subtitle: 'Nhập vai AI',
+      duration: durationMap[paceMode].roleplay,
+      icon: MessageSquare,
+    },
+    {
+      id: 'shadowing',
+      stepNumber: 3,
+      title: 'Nhại giọng',
+      subtitle: 'Chuẩn ngữ điệu',
+      duration: durationMap[paceMode].shadowing,
+      icon: Headphones,
+    },
+    {
+      id: 'debrief',
+      stepNumber: 4,
+      title: 'Đúc kết',
+      subtitle: 'Sửa lỗi & Nhật ký',
+      duration: durationMap[paceMode].debrief,
+      icon: Award,
+    },
   ];
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0B0F19]/85 backdrop-blur-xl border-b border-[#26354D]/70 transition-colors">
+    <header className="sticky top-0 z-40 bg-[#0B0F19]/90 backdrop-blur-2xl border-b border-slate-800/80 shadow-lg shadow-black/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-3">
-          {/* Left: Minimalist Brand Badge & Profile Switcher */}
+        <div className="flex items-center justify-between h-18 gap-3">
+          {/* Left: Brand Identity & Quick Profile Switcher */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 p-0.5 shadow-md shadow-indigo-500/20 flex items-center justify-center">
-              <div className="w-full h-full bg-[#0B0F19] rounded-[10px] flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-indigo-400" />
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-amber-500 p-[1.5px] shadow-lg shadow-indigo-500/20">
+              <div className="w-full h-full bg-[#0B0F19] rounded-[14px] flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-indigo-400" />
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-base font-extrabold tracking-tight text-white font-sans hidden sm:inline">
-                LingoReflex
-              </span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
-                A2 → B1
+            <div className="hidden sm:flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-extrabold tracking-tight text-white">
+                  LingoReflex
+                </span>
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                  A2 → B1+
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Huấn luyện Phản xạ Thực chiến
               </span>
             </div>
 
-            {/* Current Active User Profile Pill */}
+            {/* Active Family / Learner Profile Pill */}
             {currentProfile && (
               <button
                 onClick={onOpenProfileModal}
-                className="flex items-center gap-1.5 bg-[#161F30] hover:bg-[#1E2B42] text-white border border-[#26354D] hover:border-indigo-500/50 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer group"
-                title="Đổi tài khoản người học (Không cần mật khẩu)"
+                className="flex items-center gap-2 bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700/80 hover:border-indigo-500/50 pl-2.5 pr-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer group ml-1"
+                title="Đổi hồ sơ người học (Không cần mật khẩu)"
               >
-                <span className="text-sm">{currentProfile.avatar || '👤'}</span>
-                <span className="font-bold text-slate-200 group-hover:text-white max-w-[90px] truncate">
-                  {currentProfile.name}
-                </span>
-                <span className="text-[10px] text-indigo-400 font-normal">
-                  (Đổi)
-                </span>
+                <span className="text-base leading-none">{currentProfile.avatar || '👨‍💼'}</span>
+                <div className="text-left">
+                  <div className="font-bold text-slate-100 group-hover:text-white max-w-[95px] truncate leading-tight">
+                    {currentProfile.name}
+                  </div>
+                  <div className="text-[10px] text-indigo-400 font-medium leading-tight">
+                    Đổi hồ sơ
+                  </div>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-300" />
               </button>
             )}
           </div>
 
-          {/* Center: Distraction-Free 4-Step Stepper (60-minute daily cycle) */}
-          <nav aria-label="Daily 60-min Journey" className="hidden lg:flex items-center">
-            <div className="flex items-center bg-[#161F30]/80 p-1 rounded-xl border border-[#26354D] shadow-inner">
+          {/* Center: Ergonomic 4-Step Daily Journey Stepper */}
+          <nav aria-label="Lộ trình phiên học" className="hidden xl:flex items-center">
+            <div className="flex items-center bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-inner gap-1">
               {steps.map((st, idx) => {
                 const Icon = st.icon;
                 const isActive = currentStep === st.id;
@@ -127,135 +171,150 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     key={st.id}
                     onClick={() => onSelectStep(st.id)}
-                    className={`group relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
+                    className={`group relative flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs transition-all duration-200 cursor-pointer ${
                       isActive
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-semibold ring-1 ring-indigo-400/50'
+                        ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30 font-bold ring-1 ring-indigo-400/50'
                         : isCompleted
-                        ? 'text-slate-300 hover:text-white hover:bg-[#1E2B42]/50'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E2B42]/40'
+                        ? 'text-slate-200 hover:text-white hover:bg-slate-800/70 font-medium'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 font-medium'
                     }`}
                   >
                     <div
-                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
                         isActive
                           ? 'bg-white text-indigo-600'
                           : isCompleted
-                          ? 'bg-emerald-500/20 text-emerald-400'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                           : 'bg-slate-800 text-slate-400'
                       }`}
                     >
                       {isCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> : st.stepNumber}
                     </div>
-
-                    <span>{st.title}</span>
-
+                    <div className="text-left">
+                      <div className="leading-tight">{st.title}</div>
+                    </div>
                     <span
-                      className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                      className={`text-[11px] font-mono px-1.5 py-0.5 rounded-md ${
                         isActive
-                          ? 'bg-indigo-700/80 text-indigo-100'
-                          : 'bg-[#0B0F19] text-slate-400 group-hover:text-slate-300'
+                          ? 'bg-indigo-800/70 text-indigo-100'
+                          : 'bg-slate-950/80 text-slate-400'
                       }`}
                     >
                       {st.duration}
                     </span>
-
-                    {/* Active glowing indicator */}
-                    {isActive && (
-                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-indigo-300 rounded-full shadow-[0_0_8px_#818cf8]" />
-                    )}
                   </button>
                 );
               })}
             </div>
           </nav>
 
-          {/* Right: Gamified Widgets & Compact Session Status */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-            {/* Session Timer (Compact HUD) */}
-            <div className="hidden sm:flex items-center gap-2 bg-[#161F30]/90 border border-[#26354D] px-2.5 py-1 rounded-xl text-xs text-slate-300 shadow-sm">
-              <Clock className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="font-mono font-bold text-white tracking-wider">
-                {formatTime(timerSecondsRemaining)}
-              </span>
-              <button
-                onClick={onToggleTimer}
-                title={isTimerRunning ? 'Tạm dừng đồng hồ' : 'Tiếp tục tính giờ'}
-                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-[#1E2B42] transition-colors cursor-pointer"
+          {/* Right: Executive Control Cluster */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Adaptive Session Timer + Mode Selector */}
+            <div className="hidden md:flex items-center bg-slate-900/90 border border-slate-800 rounded-xl p-1 text-xs">
+              <div className="flex items-center gap-1.5 px-2.5 py-1">
+                <Clock className="w-4 h-4 text-indigo-400" />
+                <span className="font-mono font-bold text-sm text-white tracking-wider">
+                  {formatTime(timerSecondsRemaining)}
+                </span>
+                <button
+                  onClick={onToggleTimer}
+                  title={isTimerRunning ? 'Tạm dừng đồng hồ' : 'Tiếp tục tính giờ'}
+                  className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  {isTimerRunning ? (
+                    <Pause className="w-3.5 h-3.5 text-amber-400" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5 text-emerald-400" />
+                  )}
+                </button>
+              </div>
+
+              {/* Quick Pace Mode Toggle for Busy 30-40yo Learners */}
+              <select
+                value={paceMode}
+                onChange={(e) => setPaceMode(e.target.value as '60m' | '30m' | '15m')}
+                title="Chọn quỹ thời gian phù hợp với lịch trình hôm nay của bạn"
+                className="bg-slate-950 text-indigo-300 border border-slate-800 rounded-lg px-2 py-1 text-[11px] font-semibold focus:outline-none cursor-pointer"
               >
-                {isTimerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 text-emerald-400" />}
-              </button>
+                <option value="60m">Chuyên sâu (60p)</option>
+                <option value="30m">Tiêu chuẩn (30p)</option>
+                <option value="15m">Bận rộn (15p)</option>
+              </select>
             </div>
 
-            {/* Streak Counter Widget */}
+            {/* Streak Badge */}
             <div
-              className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl text-amber-400 text-xs font-semibold shadow-sm"
-              title="Chuỗi ngày luyện tập liên tục của bạn"
+              className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/25 px-3 py-1.5 rounded-xl text-amber-300 text-xs font-bold"
+              title="Chuỗi ngày duy trì kỷ luật liên tục"
             >
-              <Flame className="w-3.5 h-3.5 fill-amber-400 text-amber-400 animate-pulse" />
-              <span>{userProgress.streakDays}d</span>
+              <Flame className="w-4 h-4 fill-amber-400 text-amber-400" />
+              <span>{userProgress.streakDays} ngày</span>
             </div>
 
-            {/* Saved Chunks Quick Drawer Trigger */}
+            {/* Vocabulary Drawer Button */}
             <button
               onClick={onOpenVocabulary}
-              className="flex items-center gap-1.5 bg-[#161F30] hover:bg-[#1E2B42] text-slate-200 border border-[#26354D] px-2.5 sm:px-3 py-1 rounded-xl text-xs font-medium transition-all shadow-sm cursor-pointer group"
-              title="Mở Sổ Từ Vựng Phản Xạ của bạn"
+              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-slate-100 border border-slate-800 hover:border-indigo-500/40 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+              title="Mở Sổ tay Cụm từ Phản xạ"
             >
-              <BookMarked className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-300" />
-              <span className="hidden md:inline">Từ vựng</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-mono font-bold border border-indigo-500/30">
+              <BookMarked className="w-4 h-4 text-indigo-400" />
+              <span className="hidden sm:inline">Sổ từ</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 text-[11px] font-mono font-bold">
                 {vocabularyCount}
               </span>
             </button>
 
-            {/* Day Selector (Roadmap) */}
+            {/* 90-Day Roadmap Button */}
             <button
               onClick={onOpenRoadmap}
-              className="flex items-center gap-1.5 bg-[#161F30] hover:bg-[#1E2B42] text-white border border-[#26354D] px-2.5 sm:px-3 py-1 rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer"
-              title="Xem bản đồ lộ trình 90 ngày"
+              className="flex items-center gap-2 bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-200 border border-indigo-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              title="Xem toàn bộ lộ trình 90 ngày"
             >
-              <Map className="w-3.5 h-3.5 text-sky-400" />
+              <Map className="w-4 h-4 text-indigo-400" />
               <span>Ngày {currentLesson.day}/90</span>
             </button>
 
-            {/* Background Customizer Trigger */}
-            <button
-              onClick={onOpenBackgroundModal}
-              className="p-1.5 rounded-xl bg-[#161F30] hover:bg-[#1E2B42] text-amber-400 hover:text-amber-300 border border-[#26354D] transition-colors cursor-pointer"
-              title="Chỉnh ảnh nền, độ mờ & độ sáng"
-            >
-              <Sliders className="w-4 h-4" />
-            </button>
-
-            {/* Settings Trigger */}
-            <button
-              onClick={onOpenSettings}
-              className="p-1.5 rounded-xl bg-[#161F30] hover:bg-[#1E2B42] text-slate-400 hover:text-white border border-[#26354D] transition-colors cursor-pointer"
-              title="Cài đặt giọng nói & hệ thống"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
+            {/* Visual Comfort & Settings Group */}
+            <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+              <button
+                onClick={onOpenBackgroundModal}
+                className="p-2 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Tuỳ chỉnh ánh sáng nền & chống mỏi mắt"
+              >
+                <Sliders className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onOpenSettings}
+                className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Cài đặt giọng đọc AI & hệ thống"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile/Tablet Sub-Stepper */}
-      <div className="lg:hidden border-t border-[#26354D]/60 bg-[#0B0F19]/90 overflow-x-auto scrollbar-none px-4 py-1.5">
-        <div className="flex items-center justify-between gap-1 min-w-[340px]">
+      {/* Tablet / Mobile Stepper Bar */}
+      <div className="xl:hidden border-t border-slate-800/80 bg-[#0B0F19]/95 overflow-x-auto px-4 py-2">
+        <div className="flex items-center justify-between gap-1.5 min-w-[360px]">
           {steps.map((st) => {
             const isActive = currentStep === st.id;
             return (
               <button
                 key={st.id}
                 onClick={() => onSelectStep(st.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-indigo-600 text-white font-semibold shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-[#161F30]'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
                 }`}
               >
-                <span>{st.title}</span>
-                <span className="text-[10px] text-slate-300 font-mono opacity-80">({st.duration})</span>
+                <span>
+                  {st.stepNumber}. {st.title}
+                </span>
+                <span className="text-[11px] opacity-80 font-mono">({st.duration})</span>
               </button>
             );
           })}

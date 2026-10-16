@@ -1,16 +1,5 @@
 import React, { useRef } from 'react';
-import {
-  X,
-  Sliders,
-  Image as ImageIcon,
-  Upload,
-  RotateCcw,
-  Sun,
-  Eye,
-  CheckCircle2,
-  Sparkles,
-  Layers,
-} from 'lucide-react';
+import { X, Sliders, Upload, RotateCcw, Eye, Moon, Sun, Sparkles } from 'lucide-react';
 import { BackgroundSettings } from '../types';
 import { DEFAULT_BG_SETTINGS } from '../utils/profileStorage';
 
@@ -31,241 +20,207 @@ export const BackgroundCustomizerModal: React.FC<BackgroundCustomizerModalProps>
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
         onUpdateSettings({
           ...settings,
-          customImage: dataUrl,
+          customImage: reader.result,
         });
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleReset = () => {
-    onUpdateSettings(DEFAULT_BG_SETTINGS);
-  };
-
-  const handleUsePreset = () => {
-    onUpdateSettings({
-      ...settings,
-      customImage: null, // Reset to the high-fidelity Family Lantern theme
-    });
+  const applyPreset = (preset: 'focus' | 'warm' | 'cinema') => {
+    if (preset === 'focus') {
+      onUpdateSettings({
+        ...settings,
+        opacity: 0.18,
+        blurPx: 12,
+        brightness: 0.6,
+        overlayMode: 'obsidian',
+      });
+    } else if (preset === 'warm') {
+      onUpdateSettings({
+        ...settings,
+        opacity: 0.38,
+        blurPx: 4,
+        brightness: 0.75,
+        overlayMode: 'obsidian',
+      });
+    } else {
+      onUpdateSettings({
+        ...settings,
+        opacity: 0.52,
+        blurPx: 2,
+        brightness: 0.85,
+        overlayMode: 'cinema',
+      });
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#0B0F19]/80 backdrop-blur-xl animate-fadeIn">
-      <div className="relative w-full max-w-xl bg-[#161F30] border border-[#26354D] rounded-3xl flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
         {/* Header */}
-        <div className="p-5 border-b border-[#26354D] flex items-center justify-between bg-[#161F30]">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+            <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span>Tùy Chỉnh Ảnh Nền & Độ Đọc Chữ</span>
+              <h2 className="text-lg font-extrabold text-white">
+                Không gian & Chống mỏi mắt (Eye-Comfort)
               </h2>
               <p className="text-xs text-slate-400">
-                Điều chỉnh độ sáng, độ mờ để chữ luôn sắc nét và dễ đọc nhất.
+                Tối ưu độ tương phản chữ và ánh sáng nền cho mắt khi học buổi tối
               </p>
             </div>
           </div>
-
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-[#0B0F19] hover:bg-[#1E2B42] text-slate-400 hover:text-white border border-[#26354D] transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 text-xs text-slate-300">
-          {/* Image Source Selection */}
-          <div className="space-y-3">
-            <label className="font-semibold text-white block">1. Nguồn Ảnh Nền</label>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Preset Button: Family Lantern Night */}
-              <button
-                type="button"
-                onClick={handleUsePreset}
-                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  !settings.customImage
-                    ? 'bg-indigo-600/20 border-indigo-500 ring-2 ring-indigo-500/30'
-                    : 'bg-[#0B0F19] border-[#26354D] hover:bg-[#1E2B42]'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg">🏮</span>
-                  {!settings.customImage && (
-                    <CheckCircle2 className="w-4 h-4 text-indigo-400" />
-                  )}
-                </div>
-                <div>
-                  <span className="font-bold text-white block">Đêm Đèn Lồng Gia Đình</span>
-                  <span className="text-[11px] text-slate-400">
-                    Chủ đề ấm áp theo ảnh chụp
-                  </span>
-                </div>
-              </button>
+        {/* Quick Eye-Comfort Presets */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-300 block">
+            Chế độ hiển thị nhanh:
+          </label>
+          <div className="grid grid-cols-3 gap-2.5">
+            <button
+              type="button"
+              onClick={() => applyPreset('focus')}
+              className="p-3 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/50 text-left space-y-1 transition-all cursor-pointer"
+            >
+              <Moon className="w-4 h-4 text-indigo-400" />
+              <div className="text-xs font-bold text-white">Đọc đêm dịu mắt</div>
+              <div className="text-[11px] text-slate-400">Tương phản tối đa</div>
+            </button>
 
-              {/* Upload Custom File (IMG_9105.HEIC or JPG/PNG) */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  settings.customImage
-                    ? 'bg-indigo-600/20 border-indigo-500 ring-2 ring-indigo-500/30'
-                    : 'bg-[#0B0F19] border-[#26354D] hover:bg-[#1E2B42]'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <Upload className="w-5 h-5 text-indigo-400" />
-                  {settings.customImage && (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  )}
-                </div>
-                <div>
-                  <span className="font-bold text-white block">
-                    {settings.customImage ? 'Đã tải ảnh riêng lên' : 'Tải ảnh từ máy'}
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    Chọn ảnh IMG_9105 / JPG / PNG
-                  </span>
-                </div>
-              </button>
+            <button
+              type="button"
+              onClick={() => applyPreset('warm')}
+              className="p-3 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-amber-500/40 text-left space-y-1 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <div className="text-xs font-bold text-white">Đèn lồng ấm áp</div>
+              <div className="text-[11px] text-slate-400">Cân bằng hài hòa</div>
+            </button>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.heic,.HEIC"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
+            <button
+              type="button"
+              onClick={() => applyPreset('cinema')}
+              className="p-3 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/50 text-left space-y-1 transition-all cursor-pointer"
+            >
+              <Sun className="w-4 h-4 text-emerald-400" />
+              <div className="text-xs font-bold text-white">Sống động</div>
+              <div className="text-[11px] text-slate-400">Rõ hình nền gia đình</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Sliders */}
+        <div className="space-y-4 bg-slate-950/70 p-4 rounded-2xl border border-slate-800">
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-300 font-semibold">Độ rõ ảnh nền (Opacity)</span>
+              <span className="font-mono text-indigo-300">{Math.round(settings.opacity * 100)}%</span>
             </div>
+            <input
+              type="range"
+              min="0.1"
+              max="0.75"
+              step="0.02"
+              value={settings.opacity}
+              onChange={(e) =>
+                onUpdateSettings({ ...settings, opacity: parseFloat(e.target.value) })
+              }
+              className="w-full accent-indigo-500 cursor-pointer"
+            />
           </div>
 
-          {/* Sliders: Blur, Opacity, Brightness */}
-          <div className="space-y-4 bg-[#0B0F19]/80 p-4 rounded-2xl border border-[#26354D]">
-            <h3 className="font-semibold text-white flex items-center gap-1.5">
-              <Eye className="w-4 h-4 text-indigo-400" />
-              <span>2. Tinh Chỉnh Độ Mờ & Độ Tương Phản Đọc Chữ</span>
-            </h3>
-
-            {/* Độ mờ hậu cảnh (Blur) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-slate-300">
-                <span>Độ mờ ảnh nền (Blur):</span>
-                <span className="font-mono font-bold text-indigo-300">
-                  {settings.blurPx}px {settings.blurPx >= 4 ? '(Tối ưu cho mắt)' : ''}
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="16"
-                step="1"
-                value={settings.blurPx}
-                onChange={(e) =>
-                  onUpdateSettings({ ...settings, blurPx: Number(e.target.value) })
-                }
-                className="w-full accent-indigo-500 cursor-pointer"
-              />
-              <p className="text-[11px] text-slate-500">
-                Làm mờ nhẹ chi tiết hậu cảnh giúp mắt tập trung hoàn toàn vào nội dung bài học.
-              </p>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-300 font-semibold">Độ làm mờ hậu cảnh (Blur)</span>
+              <span className="font-mono text-indigo-300">{settings.blurPx}px</span>
             </div>
-
-            {/* Độ đậm / Hiển thị ảnh nền (Opacity) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-slate-300">
-                <span>Độ hiển thị ảnh nền (Opacity):</span>
-                <span className="font-mono font-bold text-indigo-300">
-                  {Math.round(settings.opacity * 100)}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0.1"
-                max="0.75"
-                step="0.05"
-                value={settings.opacity}
-                onChange={(e) =>
-                  onUpdateSettings({ ...settings, opacity: Number(e.target.value) })
-                }
-                className="w-full accent-indigo-500 cursor-pointer"
-              />
-              <p className="text-[11px] text-slate-500">
-                Mức 35% - 45% mang lại độ cân bằng hoàn hảo giữa thẩm mỹ và tính tập trung.
-              </p>
-            </div>
-
-            {/* Độ sáng (Brightness) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-slate-300">
-                <span>Độ sáng ảnh (Brightness):</span>
-                <span className="font-mono font-bold text-indigo-300">
-                  {Math.round(settings.brightness * 100)}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0.4"
-                max="1.0"
-                step="0.05"
-                value={settings.brightness}
-                onChange={(e) =>
-                  onUpdateSettings({ ...settings, brightness: Number(e.target.value) })
-                }
-                className="w-full accent-indigo-500 cursor-pointer"
-              />
-            </div>
+            <input
+              type="range"
+              min="0"
+              max="20"
+              step="1"
+              value={settings.blurPx}
+              onChange={(e) =>
+                onUpdateSettings({ ...settings, blurPx: parseInt(e.target.value, 10) })
+              }
+              className="w-full accent-indigo-500 cursor-pointer"
+            />
           </div>
 
-          {/* Text Legibility Sample Preview Card */}
-          <div className="space-y-2">
-            <span className="font-semibold text-white block">3. Xem Thử Độ Rõ Nét Của Chữ:</span>
-            <div className="p-4 rounded-2xl bg-[#161F30]/90 backdrop-blur-xl border border-[#26354D] space-y-1.5 shadow-xl">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span className="font-bold text-white text-sm">
-                  "step out of my comfort zone"
-                </span>
-                <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-800/40">
-                  /step aʊt/
-                </span>
-              </div>
-              <p className="text-slate-300 text-xs">
-                Bước ra khỏi vùng an toàn của bản thân — <span className="text-emerald-400 font-semibold">Độ tương phản đạt chuẩn WCAG AAA</span>
-              </p>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-300 font-semibold">Độ dịu sáng (Brightness)</span>
+              <span className="font-mono text-indigo-300">
+                {Math.round(settings.brightness * 100)}%
+              </span>
             </div>
+            <input
+              type="range"
+              min="0.3"
+              max="1.0"
+              step="0.05"
+              value={settings.brightness}
+              onChange={(e) =>
+                onUpdateSettings({ ...settings, brightness: parseFloat(e.target.value) })
+              }
+              className="w-full accent-indigo-500 cursor-pointer"
+            />
           </div>
+        </div>
+
+        {/* Custom Family Photo Upload */}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+          >
+            <Upload className="w-4 h-4 text-indigo-400" />
+            <span>Tải ảnh kỷ niệm gia đình lên</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onUpdateSettings(DEFAULT_BG_SETTINGS)}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Khôi phục mặc định</span>
+          </button>
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-[#0B0F19] border-t border-[#26354D] flex items-center justify-between">
+        <div className="pt-3 border-t border-slate-800 flex justify-end">
           <button
-            type="button"
-            onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-[#1E2B42] text-xs transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Khôi phục mặc định tối ưu</span>
-          </button>
-
-          <button
-            type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+            className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 cursor-pointer"
           >
-            Hoàn tất & Đóng
+            Áp dụng & Đóng
           </button>
         </div>
       </div>
